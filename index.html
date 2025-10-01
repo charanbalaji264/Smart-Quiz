@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smart Quiz — Age-Based Online Quiz</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { color-scheme: light only; }
+    body { font-family: 'Poppins', system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    /* Smooth progress transitions */
+    .progress-smooth { transition: width 0.15s linear; }
+    /* Nice shimmering animation for headers */
+    .shine {
+      background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.35) 50%, rgba(255,255,255,0) 100%);
+      background-size: 200% 100%;
+      animation: shine 3s infinite;
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+              mask-composite: exclude;
+    }
+    @keyframes shine { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
+    @media (min-width: 1019px) {
+        #k{
+            width: 150%;
+        }
+    }
+    /* Tooltip basics */
+    .tooltip:hover .tooltip-card { opacity: 1; transform: translateY(0); pointer-events: auto; }
+    .tooltip-card { opacity: 0; transform: translateY(4px); transition: all .18s ease; pointer-events: none; }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-rose-500 via-fuchsia-500 to-indigo-600 text-slate-900">
+  <div class="min-h-screen flex flex-col">
+    <!-- Header -->
+    <div class="min-h-screen flex flex-col">
+  <header class="relative">
+    <div class="absolute inset-0 opacity-20">
+      <div class="shine absolute top-6 left-8 right-8 h-24 rounded-3xl border border-white/20"></div>
+    </div>
+    <div class="relative max-w-screen-xl w-full mx-auto px-6 pt-10 pb-6">
+      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div>
+          <h1 class="text-white/95 text-3xl md:text-5xl xl:text-6xl font-extrabold tracking-tight drop-shadow-sm">Smart Quiz</h1>
+          <p class="text-white/90 mt-2 text-sm md:text-base xl:text-lg">Fast, fun quizzes with instant feedback. Pick an age level and go!</p>
+        </div>
+      </div>
+    </div>
+  </header>
+    <main class="flex-1" id="k">
+          <div class="max-w-screen-xl w-full mx-auto px-6 pb-16">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Settings / Levels -->
+         <aside class="lg:col-span-1">
+          <div class="bg-white/90 rounded-3xl shadow-xl border border-white/40 p-5 md:p-6 space-y-6">
+              <div>
+                <div class="flex items-center justify-between">
+                  <h2 class="text-lg font-bold text-slate-800">Choose Level</h2>
+                  <span class="text-xs text-slate-500">Ages</span>
+                </div>
+                <div id="ageGroupGrid" class="mt-4 grid grid-cols-2 gap-3">
+                  <!-- Age buttons injected by JS -->
+                </div>
+              </div>
+
+              <div class="border-t border-slate-200/70 pt-5 space-y-5">
+                <div>
+                  <label for="questionCount" class="flex items-center justify-between text-sm font-semibold text-slate-700">
+                    <span>Number of Questions</span>
+                    <span id="questionCountValue" class="text-indigo-600">5</span>
+                  </label>
+                  <input id="questionCount" type="range" min="3" max="10" value="5" class="w-full accent-indigo-600" />
+                </div>
+
+                <div>
+                  <label for="questionTime" class="flex items-center justify-between text-sm font-semibold text-slate-700">
+                    <span>Seconds Per Question</span>
+                    <span id="questionTimeValue" class="text-indigo-600">25s</span>
+                  </label>
+                  <input id="questionTime" type="range" min="10" max="45" value="25" class="w-full accent-indigo-600" />
+                  <p id="timeHint" class="text-xs text-slate-500 mt-1">Tip: Younger ages do better with a little more time.</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <input id="useAPI" type="checkbox" class="w-4 h-4 accent-indigo-600">
+                    <label for="useAPI" class="text-sm font-semibold text-slate-700">Use Open Trivia DB</label>
+                  </div>
+                  <div class="tooltip relative">
+                    <span class="text-xs text-slate-500 underline decoration-dotted cursor-help">What’s this?</span>
+                    <div class="tooltip-card absolute right-0 mt-2 w-64 bg-white text-slate-700 text-xs p-3 rounded-xl border border-slate-200 shadow-lg">
+                      Pulls fresh questions from a public trivia source. Needs internet. If it can’t load, we’ll fall back to built‑in questions.
+                    </div>
+                  </div>
+                </div>
+
+                <div id="apiExtras" class="hidden space-y-3">
+                  <div>
+                    <label class="text-sm font-semibold text-slate-700">Difficulty</label>
+                    <div class="mt-1 grid grid-cols-3 gap-2">
+                      <button data-diff="easy" class="diff-btn px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold">Easy</button>
+                      <button data-diff="medium" class="diff-btn px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm">Medium</button>
+                      <button data-diff="hard" class="diff-btn px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm">Hard</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="pt-1">
+                  <button id="startBtn" class="w-full inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold rounded-2xl px-5 py-3 disabled:opacity-40 disabled:cursor-not-allowed transition">
+                    <span>Start Quiz</span>
+                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none">
+                      <path d="M5 12h14M13 5l7 7-7 7" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
+
+                <div id="notice" class="hidden text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                  Heads up: API works best for ages 10–12 and 12+. Younger levels use built‑in questions.
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          <!-- Quiz / Content -->
+        <section class="lg:col-span-2" >
+          <div class="bg-white/95 rounded-3xl shadow-xl border border-white/40 p-5 md:p-7 space-y-5" id="q">
+              <!-- Status Bar -->
+              <div class="flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
+                <div class="flex items-center gap-3">
+                  <div id="levelPill" class="hidden md:inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-xl border border-indigo-100 text-sm font-semibold">
+                    <span id="levelEmoji">🎯</span>
+                    <span id="levelName">Select a level</span>
+                  </div>
+                  <div id="streakPill" class="hidden items-center gap-2 bg-emerald-50 text-emerald-700 px-3 py-2 rounded-xl border border-emerald-100 text-sm font-semibold">
+                    🔥 Streak: <span id="streakVal">0</span>
+                  </div>
+                </div>
+
+                <div class="flex-1 md:max-w-md">
+                  <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                    <div id="timeBar" class="h-full w-0 bg-gradient-to-r from-rose-500 via-fuchsia-500 to-indigo-600 progress-smooth"></div>
+                  </div>
+                  <div class="flex items-center justify-between mt-1.5">
+                    <div class="text-xs text-slate-500">
+                      Question <span id="qIndex">0</span>/<span id="qTotal">0</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <button id="pauseBtn" class="hidden text-xs bg-slate-800 text-white rounded-lg px-2.5 py-1 hover:bg-slate-900">Pause</button>
+                      <div id="timerText" class="text-xs font-bold text-slate-800">—</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="text-right">
+                  <div class="text-xs uppercase tracking-wide text-slate-500">Score</div>
+                  <div class="text-lg font-extrabold text-slate-800"><span id="scoreVal">0</span></div>
+                </div>
+              </div>
+
+              <!-- Question Card -->
+              <div id="quizCard" class="hidden rounded-2xl border border-slate-200 bg-white p-5 md:p-7 space-y-4">
+                <div id="questionText" class="text-xl md:text-2xl font-bold text-slate-800 leading-snug"></div>
+                <div id="answersWrap" class="mt-2 grid grid-cols-1 gap-3">
+                  <!-- Options injected -->
+                </div>
+
+                <div id="feedback" class="hidden rounded-xl px-4 py-3 text-sm font-semibold"></div>
+
+                <div class="flex items-center justify-between pt-2">
+                  <button id="skipBtn" class="inline-flex items-center gap-2 text-slate-700 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 px-4 py-2 rounded-xl">
+                    Skip
+                  </button>
+                  <div class="flex items-center gap-2">
+                    <button id="prevBtn" class="hidden text-slate-600 bg-slate-50 hover:bg-slate-100 px-4 py-2 rounded-xl border border-slate-200">Back</button>
+                    <button id="nextBtn" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-semibold disabled:opacity-40 disabled:cursor-not-allowed">
+                      Next
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Empty / Intro -->
+              <div id="emptyState" class="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-8 md:p-12 text-center">
+                <div class="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-indigo-100 text-indigo-700 mx-auto mb-4">
+                  <svg class="h-8 w-8" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 3l6 3v6c0 5-6 9-6 9s-6-4-6-9V6l6-3z" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                    <circle cx="12" cy="10" r="2" fill="currentColor"/>
+                  </svg>
+                </div>
+                <h3 class="text-xl md:text-2xl font-bold text-slate-800">Pick a level to begin</h3>
+                <p class="text-slate-600 mt-2">Choose ages 1–5, 5–10, 10–12, or 12+ on the left, adjust the timer, then hit Start Quiz.</p>
+              </div>
+
+              <!-- Results -->
+              <div id="resultCard" class="hidden rounded-2xl border border-slate-200 bg-white p-6 md:p-8">
+                <div class="flex flex-col md:flex-row items-center md:items-start gap-8">
+                  <!-- Donut -->
+                  <div class="relative">
+                    <svg class="h-40 w-40 -rotate-90" viewBox="0 0 100 100">
+                      <circle cx="50" cy="50" r="42" stroke="#E2E8F0" stroke-width="12" fill="none"/>
+                      <circle id="donut" cx="50" cy="50" r="42" stroke="#6366F1" stroke-width="12" stroke-linecap="round" fill="none" stroke-dasharray="0 999"/>
+                    </svg>
+                    <div class="absolute inset-0 flex items-center justify-center rotate-90">
+                      <div class="text-center">
+                        <div class="text-2xl font-extrabold text-slate-800"><span id="scorePct">0</span>%</div>
+                        <div class="text-xs text-slate-500">Correct</div>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Summary -->
+                  <div class="flex-1 w-full">
+                    <h3 class="text-xl font-extrabold text-slate-800">Great job!</h3>
+                    <p id="resultSummary" class="text-slate-600 mt-1">You scored 0 out of 0.</p>
+
+                    <div class="mt-4 grid grid-cols-3 gap-3 text-center">
+                      <div class="rounded-xl bg-emerald-50 text-emerald-700 px-3 py-2 border border-emerald-100">
+                        <div class="text-xs">Correct</div>
+                        <div id="resCorrect" class="text-lg font-bold">0</div>
+                      </div>
+                      <div class="rounded-xl bg-rose-50 text-rose-700 px-3 py-2 border border-rose-100">
+                        <div class="text-xs">Incorrect</div>
+                        <div id="resWrong" class="text-lg font-bold">0</div>
+                      </div>
+                      <div class="rounded-xl bg-amber-50 text-amber-800 px-3 py-2 border border-amber-100">
+                        <div class="text-xs">Skipped/Timed</div>
+                        <div id="resSkipped" class="text-lg font-bold">0</div>
+                      </div>
+                    </div>
+
+                    <div class="mt-5 flex flex-wrap gap-3">
+                      <button onclick="f()" id="changeLevelBtn" class="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 rounded-xl border border-slate-200">
+                        Play again
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Review List -->
+                <div id="reviewList" class="hidden mt-6 space-y-3">
+                  <!-- Filled by JS -->
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-auto">
+    <div class="max-w-[2000px] w-full mx-auto px-6 pb-8 text-white/85 text-xs">
+        Immediate feedback is built in. Open Trivia DB requires internet; if it fails, questions will fall back to built‑in sets.
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    // ========= Data =========
+    const startBtn = document.getElementById("startBtn");
+  const levelPanel = document.querySelector("aside"); // Choose Level panel
+  const quizCard = document.getElementById("quizCard");
+    const i = document.getElementById("resultCard");
+
+      const p = document.getElementById("q");
+
+  const emptyState = document.getElementById("emptyState");
+
+  // Ensure quiz card is hidden initially
+  p.classList.add("hidden");
+  emptyState.classList.add("hidden");
+
+
+  startBtn.addEventListener("click", async () => {
+  levelPanel.classList.add("hidden");
+  p.classList.remove("hidden");
+
+  setView('quiz'); // show quiz card
+
+  // Load questions
+  let qs = [];
+  if (state.useAPI) {
+    qs = await buildApiQuestions();
+  }
+  if (!qs || qs.length === 0) {
+    qs = buildLocalQuestions();
+  }
+  state.questions = qs;
+  state.index = 0;
+  state.score = 0;
+
+  // Render first question
+  renderQuestion();
+});
+
+function f(){
+      levelPanel.classList.remove("hidden");
+  p.classList.add("hidden");
+}
+    const AGE_LEVELS = [
+      { key: '1-5', label: 'Ages 1–5', emoji: '🧸', hint: 'Shapes, colors, simple counting', recTime: 25 },
+      { key: '5-10', label: 'Ages 5–10', emoji: '🎈', hint: 'Math & words starter', recTime: 25 },
+      { key: '10-12', label: 'Ages 10–12', emoji: '🧠', hint: 'General knowledge', recTime: 20 },
+      { key: '12+', label: 'Ages 12+', emoji: '🚀', hint: 'Challenging trivia', recTime: 18 },
+    ];
+
+    // Small, curated sets per level (only a few; we’ll sample to match the requested count)
+    const LOCAL_BANK = {
+      '1-5': [
+  { id: '15-1', q: 'Which one is a circle?', choices: ['🔺', '🔴', '🟦', '⭐'], answerIndex: 1, exp: 'A circle is perfectly round, like 🔴.' },
+  { id: '15-2', q: 'What color is the sky on a clear day?', choices: ['Green', 'Blue', 'Red', 'Purple'], answerIndex: 1, exp: 'On a clear day, the sky looks blue.' },
+  { id: '15-3', q: 'How many eyes does a typical person have?', choices: ['1', '2', '3', '4'], answerIndex: 1, exp: 'Most people have two eyes.' },
+  { id: '15-4', q: 'Which one is the biggest?', choices: ['🐜', '🐶', '🐘', '🐁'], answerIndex: 2, exp: 'An elephant is the largest among these.' },
+  { id: '15-5', q: 'Which fruit is yellow and long?', choices: ['Apple', 'Banana', 'Grapes', 'Orange'], answerIndex: 1, exp: 'Bananas are yellow and long.' },
+  { id: '15-6', q: 'Which animal says “Meow”?', choices: ['Dog', 'Cat', 'Cow', 'Duck'], answerIndex: 1, exp: 'Cats say Meow.' },
+  { id: '15-7', q: 'Which number comes after 4?', choices: ['3', '5', '6', '2'], answerIndex: 1, exp: 'After 4 comes 5.' },
+  { id: '15-8', q: 'What shape is a ball?', choices: ['Square', 'Triangle', 'Circle', 'Star'], answerIndex: 2, exp: 'Balls are round like circles.' },
+  { id: '15-9', q: 'Which one can fly?', choices: ['Fish', 'Bird', 'Dog', 'Cow'], answerIndex: 1, exp: 'Birds can fly.' },
+  { id: '15-10', q: 'What color is grass?', choices: ['Blue', 'Red', 'Green', 'Yellow'], answerIndex: 2, exp: 'Grass is green.' },
+  { id: '15-11', q: 'Which animal gives us wool?', choices: ['Cow', 'Goat', 'Sheep', 'Dog'], answerIndex: 2, exp: 'Sheep give us wool.' },
+  { id: '15-12', q: 'Which fruit is red and round?', choices: ['Banana', 'Apple', 'Grapes', 'Orange'], answerIndex: 1, exp: 'Apples are red and round.' },
+  { id: '15-13', q: 'What is 1 + 1?', choices: ['1', '2', '3', '4'], answerIndex: 1, exp: '1 plus 1 = 2.' },
+  { id: '15-14', q: 'Which animal says “Quack”?', choices: ['Dog', 'Cat', 'Duck', 'Cow'], answerIndex: 2, exp: 'Ducks say Quack.' },
+  { id: '15-15', q: 'What is the color of milk?', choices: ['White', 'Red', 'Green', 'Blue'], answerIndex: 0, exp: 'Milk is white.' },
+  { id: '15-16', q: 'Which number comes before 10?', choices: ['8', '9', '11', '7'], answerIndex: 1, exp: 'Before 10 is 9.' },
+  { id: '15-17', q: 'Which animal has a long trunk?', choices: ['Dog', 'Elephant', 'Horse', 'Cat'], answerIndex: 1, exp: 'Elephants have long trunks.' },
+  { id: '15-18', q: 'What is the color of the sun?', choices: ['Yellow', 'Blue', 'Pink', 'Green'], answerIndex: 0, exp: 'The sun looks yellow.' },
+  { id: '15-19', q: 'Which one is used to cut paper?', choices: ['Pen', 'Scissors', 'Spoon', 'Book'], answerIndex: 1, exp: 'Scissors cut paper.' },
+  { id: '15-20', q: 'Which shape has 3 sides?', choices: ['Square', 'Triangle', 'Circle', 'Rectangle'], answerIndex: 1, exp: 'Triangles have 3 sides.' },
+  { id: '15-21', q: 'Which one shines at night?', choices: ['Moon', 'Sun', 'Tree', 'Cloud'], answerIndex: 0, exp: 'The moon shines at night.' },
+  { id: '15-22', q: 'What is the opposite of hot?', choices: ['Warm', 'Cold', 'Fire', 'Dry'], answerIndex: 1, exp: 'The opposite is cold.' },
+  { id: '15-23', q: 'How many legs does a dog have?', choices: ['2', '3', '4', '5'], answerIndex: 2, exp: 'Dogs have 4 legs.' },
+  { id: '15-24', q: 'Which toy can fly in the sky?', choices: ['Car', 'Kite', 'Ball', 'Doll'], answerIndex: 1, exp: 'Kites fly in the sky.' },
+  { id: '15-25', q: 'Which one gives us light at night?', choices: ['Lamp', 'Table', 'Book', 'Chair'], answerIndex: 0, exp: 'A lamp gives light.' },
+  { id: '15-26', q: 'What is 5 – 2?', choices: ['2', '3', '4', '5'], answerIndex: 1, exp: '5 minus 2 = 3.' },
+  { id: '15-27', q: 'Which one is round?', choices: ['Book', 'Ball', 'Box', 'Table'], answerIndex: 1, exp: 'Balls are round.' },
+  { id: '15-28', q: 'Which bird cannot fly?', choices: ['Parrot', 'Crow', 'Penguin', 'Sparrow'], answerIndex: 2, exp: 'Penguins cannot fly.' },
+  { id: '15-29', q: 'Which color is made by mixing red and yellow?', choices: ['Blue', 'Purple', 'Orange', 'Green'], answerIndex: 2, exp: 'Red + Yellow = Orange.' },
+  { id: '15-30', q: 'Which animal is known as King of the Jungle?', choices: ['Tiger', 'Elephant', 'Lion', 'Bear'], answerIndex: 2, exp: 'The lion is called king of the jungle.' },
+  { id: '15-31', q: 'How many wheels does a bicycle have?', choices: ['1', '2', '3', '4'], answerIndex: 1, exp: 'A bicycle has 2 wheels.' },
+  { id: '15-32', q: 'Which fruit is purple?', choices: ['Banana', 'Apple', 'Grapes', 'Orange'], answerIndex: 2, exp: 'Grapes are purple.' },
+  { id: '15-33', q: 'What is the color of water?', choices: ['Blue', 'Transparent', 'Green', 'Black'], answerIndex: 1, exp: 'Water is colorless/transparent.' },
+  { id: '15-34', q: 'Which bird says “Cuckoo”?', choices: ['Crow', 'Cuckoo', 'Duck', 'Hen'], answerIndex: 1, exp: 'The cuckoo bird says “Cuckoo”.' },
+  { id: '15-35', q: 'How many days are there in a week?', choices: ['5', '6', '7', '8'], answerIndex: 2, exp: 'There are 7 days in a week.' },
+],
+
+      '5-10': [
+  { id: '510-1', q: 'What is 7 + 5?', choices: ['10', '11', '12', '13'], answerIndex: 2, exp: '7 + 5 = 12.' },
+  { id: '510-2', q: 'Which word is a noun?', choices: ['Run', 'Happy', 'Apple', 'Quickly'], answerIndex: 2, exp: 'Apple is a noun.' },
+  { id: '510-3', q: 'Which planet do we live on?', choices: ['Mars', 'Earth', 'Venus', 'Jupiter'], answerIndex: 1, exp: 'We live on Earth.' },
+  { id: '510-4', q: 'What is the opposite of “cold”?', choices: ['Hot', 'Cool', 'Ice', 'Snow'], answerIndex: 0, exp: 'The opposite is hot.' },
+  { id: '510-5', q: 'Which animal gives us milk?', choices: ['Cat', 'Dog', 'Cow', 'Lion'], answerIndex: 2, exp: 'Cows give us milk.' },
+  { id: '510-6', q: 'What is 9 – 4?', choices: ['3', '5', '6', '7'], answerIndex: 1, exp: '9 – 4 = 5.' },
+  { id: '510-7', q: 'Which is the fastest land animal?', choices: ['Elephant', 'Cheetah', 'Horse', 'Lion'], answerIndex: 1, exp: 'Cheetahs are fastest.' },
+  { id: '510-8', q: 'How many sides does a square have?', choices: ['3', '4', '5', '6'], answerIndex: 1, exp: 'A square has 4 sides.' },
+  { id: '510-9', q: 'Which gas do humans need to breathe?', choices: ['Oxygen', 'Carbon Dioxide', 'Nitrogen', 'Helium'], answerIndex: 0, exp: 'We need oxygen.' },
+  { id: '510-10', q: 'Which day comes after Friday?', choices: ['Sunday', 'Thursday', 'Saturday', 'Monday'], answerIndex: 2, exp: 'Saturday comes after Friday.' },
+  { id: '510-11', q: 'Which is the largest planet in our solar system?', choices: ['Mars', 'Earth', 'Jupiter', 'Venus'], answerIndex: 2, exp: 'Jupiter is the largest planet.' },
+  { id: '510-12', q: 'What is 5 × 6?', choices: ['25', '30', '35', '36'], answerIndex: 1, exp: '5 × 6 = 30.' },
+  { id: '510-13', q: 'Which organ helps us to breathe?', choices: ['Heart', 'Lungs', 'Brain', 'Liver'], answerIndex: 1, exp: 'We breathe with our lungs.' },
+  { id: '510-14', q: 'How many letters are there in the English alphabet?', choices: ['24', '25', '26', '27'], answerIndex: 2, exp: 'There are 26 letters.' },
+  { id: '510-15', q: 'Which is the smallest ocean?', choices: ['Pacific', 'Indian', 'Atlantic', 'Arctic'], answerIndex: 3, exp: 'The Arctic Ocean is smallest.' },
+  { id: '510-16', q: 'What is 15 ÷ 3?', choices: ['4', '5', '6', '7'], answerIndex: 1, exp: '15 divided by 3 = 5.' },
+  { id: '510-17', q: 'Which bird lays the largest eggs?', choices: ['Hen', 'Ostrich', 'Duck', 'Eagle'], answerIndex: 1, exp: 'Ostriches lay the largest eggs.' },
+  { id: '510-18', q: 'Which shape has no corners?', choices: ['Square', 'Triangle', 'Circle', 'Rectangle'], answerIndex: 2, exp: 'A circle has no corners.' },
+  { id: '510-19', q: 'Which is the longest river in the world?', choices: ['Amazon', 'Nile', 'Ganga', 'Yangtze'], answerIndex: 1, exp: 'The Nile is the longest river.' },
+  { id: '510-20', q: 'What is the national animal of India?', choices: ['Elephant', 'Tiger', 'Lion', 'Peacock'], answerIndex: 1, exp: 'Tiger is the national animal.' },
+  { id: '510-21', q: 'What is 12 × 12?', choices: ['124', '142', '144', '148'], answerIndex: 2, exp: '12 × 12 = 144.' },
+  { id: '510-22', q: 'Which gas do plants release during photosynthesis?', choices: ['Oxygen', 'Carbon Dioxide', 'Nitrogen', 'Methane'], answerIndex: 0, exp: 'Plants release oxygen.' },
+  { id: '510-23', q: 'Which is the tallest mountain in the world?', choices: ['K2', 'Kangchenjunga', 'Mount Everest', 'Nanda Devi'], answerIndex: 2, exp: 'Mount Everest is the tallest.' },
+  { id: '510-24', q: 'Which is the largest continent?', choices: ['Africa', 'Asia', 'Europe', 'Antarctica'], answerIndex: 1, exp: 'Asia is the largest continent.' },
+  { id: '510-25', q: 'What is the boiling point of water?', choices: ['50°C', '75°C', '100°C', '150°C'], answerIndex: 2, exp: 'Water boils at 100°C.' },
+  { id: '510-26', q: 'Which is the smallest state in India?', choices: ['Sikkim', 'Goa', 'Tripura', 'Manipur'], answerIndex: 1, exp: 'Goa is the smallest state.' },
+  { id: '510-27', q: 'Which instrument is used to measure temperature?', choices: ['Barometer', 'Thermometer', 'Compass', 'Ruler'], answerIndex: 1, exp: 'Thermometer measures temperature.' },
+  { id: '510-28', q: 'What is 100 ÷ 10?', choices: ['9', '10', '11', '12'], answerIndex: 1, exp: '100 ÷ 10 = 10.' },
+  { id: '510-29', q: 'Which is the largest desert in the world?', choices: ['Sahara', 'Thar', 'Gobi', 'Kalahari'], answerIndex: 0, exp: 'The Sahara Desert is largest.' },
+  { id: '510-30', q: 'What is the capital of India?', choices: ['Mumbai', 'Delhi', 'Kolkata', 'Chennai'], answerIndex: 1, exp: 'New Delhi is the capital.' },
+  { id: '510-31', q: 'Which planet is closest to the sun?', choices: ['Earth', 'Mars', 'Mercury', 'Venus'], answerIndex: 2, exp: 'Mercury is closest to the sun.' },
+  { id: '510-32', q: 'What is 50 + 25?', choices: ['60', '70', '75', '80'], answerIndex: 2, exp: '50 + 25 = 75.' },
+  { id: '510-33', q: 'Which country is called the Land of Rising Sun?', choices: ['China', 'Japan', 'India', 'Thailand'], answerIndex: 1, exp: 'Japan is the Land of Rising Sun.' },
+  { id: '510-34', q: 'Which part of the plant is called the “food factory”?', choices: ['Root', 'Leaf', 'Stem', 'Flower'], answerIndex: 1, exp: 'Leaves make food by photosynthesis.' },
+  { id: '510-35', q: 'What is the value of pi (approx)?', choices: ['2.14', '3.14', '4.14', '5.14'], answerIndex: 1, exp: 'π ≈ 3.14.' },
+  { id: '510-36', q: 'Which organ controls the whole body?', choices: ['Liver', 'Heart', 'Brain', 'Lungs'], answerIndex: 2, exp: 'The brain controls the body.' },
+  { id: '510-37', q: 'Which is the fastest bird?', choices: ['Eagle', 'Falcon', 'Crow', 'Parrot'], answerIndex: 1, exp: 'Peregrine Falcon is fastest.' },
+  { id: '510-38', q: 'Which country has the Taj Mahal?', choices: ['Pakistan', 'India', 'Nepal', 'Sri Lanka'], answerIndex: 1, exp: 'Taj Mahal is in India.' },
+  { id: '510-39', q: 'Which metal is liquid at room temperature?', choices: ['Mercury', 'Gold', 'Iron', 'Silver'], answerIndex: 0, exp: 'Mercury is liquid at room temperature.' },
+  { id: '510-40', q: 'What is the capital of Japan?', choices: ['Kyoto', 'Tokyo', 'Osaka', 'Nagoya'], answerIndex: 1, exp: 'Tokyo is the capital city of Japan.' },
+],
+
+      '10-12': [
+  { id: '1012-1', q: 'What is 144 ÷ 12?', choices: ['10', '11', '12', '13'], answerIndex: 2, exp: '144 ÷ 12 = 12.' },
+  { id: '1012-2', q: 'Who wrote “Romeo and Juliet”?', choices: ['Charles Dickens', 'William Shakespeare', 'Mark Twain', 'Jane Austen'], answerIndex: 1, exp: 'Romeo and Juliet was written by Shakespeare.' },
+  { id: '1012-3', q: 'What is the chemical symbol for gold?', choices: ['Ag', 'Au', 'Gd', 'Go'], answerIndex: 1, exp: 'Gold is represented by Au.' },
+  { id: '1012-4', q: 'Which is the largest bone in the human body?', choices: ['Femur', 'Tibia', 'Humerus', 'Spine'], answerIndex: 0, exp: 'Femur is the longest bone.' },
+  { id: '1012-5', q: 'Who invented the light bulb?', choices: ['Alexander Graham Bell', 'Thomas Edison', 'Nikola Tesla', 'Isaac Newton'], answerIndex: 1, exp: 'Edison is credited with the light bulb.' },
+  { id: '1012-6', q: 'Which is the capital of Australia?', choices: ['Sydney', 'Canberra', 'Melbourne', 'Perth'], answerIndex: 1, exp: 'Canberra is the capital.' },
+  { id: '1012-7', q: 'What is 15 × 8?', choices: ['110', '115', '120', '125'], answerIndex: 2, exp: '15 × 8 = 120.' },
+  { id: '1012-8', q: 'Which blood group is called the universal donor?', choices: ['A+', 'B-', 'O-', 'AB+'], answerIndex: 2, exp: 'O- can donate to all.' },
+  { id: '1012-9', q: 'Which gas is used in photosynthesis?', choices: ['Oxygen', 'Carbon Dioxide', 'Nitrogen', 'Hydrogen'], answerIndex: 1, exp: 'Plants use CO₂.' },
+  { id: '1012-10', q: 'Who discovered gravity?', choices: ['Einstein', 'Newton', 'Galileo', 'Kepler'], answerIndex: 1, exp: 'Isaac Newton discovered gravity.' },
+  { id: '1012-11', q: 'Which is the largest island in the world?', choices: ['Greenland', 'Madagascar', 'Borneo', 'Australia'], answerIndex: 0, exp: 'Greenland is the largest island.' },
+  { id: '1012-12', q: 'What is 3/4 of 100?', choices: ['25', '50', '75', '80'], answerIndex: 2, exp: '¾ of 100 = 75.' },
+  { id: '1012-13', q: 'Which vitamin is produced in the skin by sunlight?', choices: ['A', 'B12', 'C', 'D'], answerIndex: 3, exp: 'Vitamin D is made from sunlight.' },
+  { id: '1012-14', q: 'Which country is famous for pyramids?', choices: ['India', 'Greece', 'Egypt', 'Mexico'], answerIndex: 2, exp: 'Egypt is known for pyramids.' },
+  { id: '1012-15', q: 'Which is the hardest natural substance?', choices: ['Iron', 'Diamond', 'Gold', 'Platinum'], answerIndex: 1, exp: 'Diamond is hardest.' },
+  { id: '1012-16', q: 'Who was the first President of the USA?', choices: ['Abraham Lincoln', 'George Washington', 'John Adams', 'Thomas Jefferson'], answerIndex: 1, exp: 'George Washington was the first President.' },
+  { id: '1012-17', q: 'Which Indian festival is known as the festival of lights?', choices: ['Holi', 'Diwali', 'Eid', 'Christmas'], answerIndex: 1, exp: 'Diwali is the festival of lights.' },
+  { id: '1012-18', q: 'What is H₂O commonly known as?', choices: ['Salt', 'Water', 'Oxygen', 'Hydrogen'], answerIndex: 1, exp: 'H₂O is water.' },
+  { id: '1012-19', q: 'Which continent is also a country?', choices: ['Asia', 'Europe', 'Australia', 'Africa'], answerIndex: 2, exp: 'Australia is both a country and a continent.' },
+  { id: '1012-20', q: 'What is the capital of France?', choices: ['Berlin', 'Paris', 'Madrid', 'London'], answerIndex: 1, exp: 'Paris is the capital of France.' },
+  { id: '1012-21', q: 'Which gas do humans exhale?', choices: ['Oxygen', 'Carbon Dioxide', 'Nitrogen', 'Helium'], answerIndex: 1, exp: 'We exhale carbon dioxide.' },
+  { id: '1012-22', q: 'Which is the smallest prime number?', choices: ['0', '1', '2', '3'], answerIndex: 2, exp: '2 is the smallest prime number.' },
+  { id: '1012-23', q: 'Who was the first man to walk on the moon?', choices: ['Yuri Gagarin', 'Buzz Aldrin', 'Neil Armstrong', 'Michael Collins'], answerIndex: 2, exp: 'Neil Armstrong in 1969.' },
+  { id: '1012-24', q: 'Which is the largest mammal?', choices: ['Elephant', 'Blue Whale', 'Shark', 'Giraffe'], answerIndex: 1, exp: 'The Blue Whale is largest.' },
+  { id: '1012-25', q: 'What is the freezing point of water?', choices: ['0°C', '32°C', '100°C', '273°C'], answerIndex: 0, exp: 'Water freezes at 0°C.' },
+  { id: '1012-26', q: 'Who is known as the Father of Computers?', choices: ['Alan Turing', 'Charles Babbage', 'Bill Gates', 'Steve Jobs'], answerIndex: 1, exp: 'Charles Babbage is the Father of Computers.' },
+  { id: '1012-27', q: 'Which is the capital of USA?', choices: ['New York', 'Washington D.C.', 'Los Angeles', 'Chicago'], answerIndex: 1, exp: 'Washington D.C. is the capital.' },
+  { id: '1012-28', q: 'Which gas is needed for burning?', choices: ['Carbon Dioxide', 'Oxygen', 'Nitrogen', 'Hydrogen'], answerIndex: 1, exp: 'Oxygen supports burning.' },
+  { id: '1012-29', q: 'Who discovered electricity?', choices: ['Newton', 'Einstein', 'Benjamin Franklin', 'Edison'], answerIndex: 2, exp: 'Franklin experimented with electricity.' },
+  { id: '1012-30', q: 'Which is the largest organ of the human body?', choices: ['Liver', 'Skin', 'Heart', 'Brain'], answerIndex: 1, exp: 'Skin is the largest organ.' },
+  { id: '1012-31', q: 'What is 25% of 200?', choices: ['25', '40', '50', '60'], answerIndex: 2, exp: '25% of 200 = 50.' },
+  { id: '1012-32', q: 'Who painted the Mona Lisa?', choices: ['Van Gogh', 'Pablo Picasso', 'Leonardo da Vinci', 'Michelangelo'], answerIndex: 2, exp: 'Da Vinci painted the Mona Lisa.' },
+  { id: '1012-33', q: 'Which planet is known as the Red Planet?', choices: ['Venus', 'Mars', 'Jupiter', 'Saturn'], answerIndex: 1, exp: 'Mars is called the Red Planet.' },
+  { id: '1012-34', q: 'Which is the national bird of India?', choices: ['Parrot', 'Peacock', 'Sparrow', 'Eagle'], answerIndex: 1, exp: 'Peacock is India’s national bird.' },
+  { id: '1012-35', q: 'What is the SI unit of force?', choices: ['Pascal', 'Newton', 'Joule', 'Watt'], answerIndex: 1, exp: 'Force is measured in Newtons.' },
+  { id: '1012-36', q: 'Who invented the telephone?', choices: ['Edison', 'Alexander Graham Bell', 'Marconi', 'Tesla'], answerIndex: 1, exp: 'Alexander Graham Bell invented the telephone.' },
+  { id: '1012-37', q: 'Which organ pumps blood?', choices: ['Lungs', 'Heart', 'Brain', 'Liver'], answerIndex: 1, exp: 'The heart pumps blood.' },
+  { id: '1012-38', q: 'Which is the longest wall in the world?', choices: ['Berlin Wall', 'Great Wall of China', 'Hadrian’s Wall', 'Western Wall'], answerIndex: 1, exp: 'The Great Wall of China is the longest.' },
+  { id: '1012-39', q: 'Which gas do plants release at night?', choices: ['Oxygen', 'Carbon Dioxide', 'Nitrogen', 'Hydrogen'], answerIndex: 1, exp: 'At night, plants release carbon dioxide.' },
+  { id: '1012-40', q: 'Which is the national currency of Japan?', choices: ['Won', 'Yen', 'Dollar', 'Peso'], answerIndex: 1, exp: 'Japan uses Yen.' },
+],
+
+      '12+': [
+  { id: '12p-1', q: 'Which element has the chemical symbol “Fe”?', choices: ['Iron', 'Fluorine', 'Fermium', 'Francium'], answerIndex: 0, exp: 'Fe stands for Iron (from Latin “Ferrum”).' },
+  { id: '12p-2', q: 'Pythagorean theorem applies to which triangle?', choices: ['Isosceles', 'Equilateral', 'Right', 'Scalene'], answerIndex: 2, exp: 'It applies to right triangles.' },
+  { id: '12p-3', q: 'Who painted the “Starry Night”?', choices: ['Da Vinci', 'Van Gogh', 'Picasso', 'Monet'], answerIndex: 1, exp: 'Vincent van Gogh painted it.' },
+  { id: '12p-4', q: 'Which language is primarily spoken in Brazil?', choices: ['Spanish', 'Portuguese', 'French', 'English'], answerIndex: 1, exp: 'Brazil’s main language is Portuguese.' },
+  { id: '12p-5', q: 'Who developed the theory of relativity?', choices: ['Newton', 'Einstein', 'Galileo', 'Kepler'], answerIndex: 1, exp: 'Albert Einstein proposed relativity.' },
+  { id: '12p-6', q: 'Which organelle is known as the powerhouse of the cell?', choices: ['Nucleus', 'Mitochondria', 'Ribosome', 'Chloroplast'], answerIndex: 1, exp: 'Mitochondria produce energy.' },
+  { id: '12p-7', q: 'What is the square root of 196?', choices: ['12', '13', '14', '15'], answerIndex: 2, exp: '√196 = 14.' },
+  { id: '12p-8', q: 'Who wrote the epic “Iliad” and “Odyssey”?', choices: ['Socrates', 'Homer', 'Plato', 'Virgil'], answerIndex: 1, exp: 'They were written by Homer.' },
+  { id: '12p-9', q: 'Which is the largest desert in the world?', choices: ['Sahara', 'Arctic', 'Gobi', 'Kalahari'], answerIndex: 1, exp: 'The Antarctic Desert is largest; Sahara is largest hot desert.' },
+  { id: '12p-10', q: 'What is the binary equivalent of decimal 10?', choices: ['1010', '1100', '1111', '1001'], answerIndex: 0, exp: '10 in binary = 1010.' },
+  { id: '12p-11', q: 'Which Indian scientist is called the “Missile Man of India”?', choices: ['C.V. Raman', 'Homi Bhabha', 'A.P.J. Abdul Kalam', 'Vikram Sarabhai'], answerIndex: 2, exp: 'Dr. Kalam is known as Missile Man.' },
+  { id: '12p-12', q: 'What is the currency of Russia?', choices: ['Ruble', 'Yen', 'Euro', 'Peso'], answerIndex: 0, exp: 'Russia uses Ruble.' },
+  { id: '12p-13', q: 'Which law explains why we wear seatbelts (inertia)?', choices: ['Newton’s First Law', 'Newton’s Second Law', 'Newton’s Third Law', 'Law of Gravitation'], answerIndex: 0, exp: 'First law of motion (inertia).' },
+  { id: '12p-14', q: 'Which river is the longest in the world?', choices: ['Amazon', 'Nile', 'Yangtze', 'Mississippi'], answerIndex: 1, exp: 'The Nile is often regarded as longest, though some consider Amazon.' },
+  { id: '12p-15', q: 'Who discovered penicillin?', choices: ['Alexander Fleming', 'Louis Pasteur', 'Edward Jenner', 'Joseph Lister'], answerIndex: 0, exp: 'Penicillin was discovered by Alexander Fleming.' },
+  { id: '12p-16', q: 'What is the value of π (pi) approximately?', choices: ['2.14', '3.14', '4.13', '3.41'], answerIndex: 1, exp: 'Pi ≈ 3.14.' },
+  { id: '12p-17', q: 'Which planet has the most moons?', choices: ['Earth', 'Mars', 'Saturn', 'Jupiter'], answerIndex: 2, exp: 'Saturn currently has the most confirmed moons.' },
+  { id: '12p-18', q: 'In computing, what does “URL” stand for?', choices: ['Universal Resource Locator', 'Uniform Resource Locator', 'United Reference Link', 'Unique Redirect Link'], answerIndex: 1, exp: 'URL = Uniform Resource Locator.' },
+  { id: '12p-19', q: 'Which Indian leader gave the slogan “Quit India”?', choices: ['Subhash Chandra Bose', 'Mahatma Gandhi', 'Nehru', 'Sardar Patel'], answerIndex: 1, exp: 'Gandhi started Quit India Movement in 1942.' },
+  { id: '12p-20', q: 'Which gas is known as laughing gas?', choices: ['Nitrous Oxide', 'Carbon Monoxide', 'Oxygen', 'Methane'], answerIndex: 0, exp: 'N₂O is laughing gas.' },
+  { id: '12p-21', q: 'What is the derivative of x²?', choices: ['x', '2x', 'x²', '2'], answerIndex: 1, exp: 'd/dx (x²) = 2x.' },
+  { id: '12p-22', q: 'Who proposed the heliocentric model of the solar system?', choices: ['Ptolemy', 'Galileo', 'Copernicus', 'Kepler'], answerIndex: 2, exp: 'Copernicus proposed heliocentric theory.' },
+  { id: '12p-23', q: 'Which is the fastest land animal?', choices: ['Cheetah', 'Horse', 'Tiger', 'Lion'], answerIndex: 0, exp: 'Cheetah can run 100+ km/h.' },
+  { id: '12p-24', q: 'What is the chemical formula of table salt?', choices: ['NaCl', 'KCl', 'HCl', 'CaCl₂'], answerIndex: 0, exp: 'Salt = Sodium Chloride (NaCl).' },
+  { id: '12p-25', q: 'Who is known as the “Father of Modern Physics”?', choices: ['Einstein', 'Newton', 'Planck', 'Bohr'], answerIndex: 0, exp: 'Albert Einstein is called the Father of Modern Physics.' },
+  { id: '12p-26', q: 'Which planet is called the “Morning Star”?', choices: ['Venus', 'Mercury', 'Mars', 'Saturn'], answerIndex: 0, exp: 'Venus is often visible as Morning Star.' },
+  { id: '12p-27', q: 'What is the national sport of Japan?', choices: ['Karate', 'Sumo Wrestling', 'Baseball', 'Kendo'], answerIndex: 1, exp: 'Sumo wrestling is traditional national sport.' },
+  { id: '12p-28', q: 'Which element has the highest melting point?', choices: ['Iron', 'Tungsten', 'Carbon', 'Platinum'], answerIndex: 1, exp: 'Tungsten has highest melting point.' },
+  { id: '12p-29', q: 'Which country is known as the Land of the Rising Sun?', choices: ['China', 'Japan', 'Thailand', 'Korea'], answerIndex: 1, exp: 'Japan is called Land of Rising Sun.' },
+  { id: '12p-30', q: 'What is 2⁵?', choices: ['32', '16', '64', '128'], answerIndex: 0, exp: '2 to the power of 5 = 32.' },
+  { id: '12p-31', q: 'Which year did World War II end?', choices: ['1942', '1945', '1947', '1950'], answerIndex: 1, exp: 'WWII ended in 1945.' },
+  { id: '12p-32', q: 'What is the capital of Canada?', choices: ['Toronto', 'Ottawa', 'Vancouver', 'Montreal'], answerIndex: 1, exp: 'Ottawa is capital of Canada.' },
+  { id: '12p-33', q: 'Which Indian mathematician discovered zero?', choices: ['Aryabhata', 'Ramanujan', 'Bhaskara', 'Varahamihira'], answerIndex: 0, exp: 'Aryabhata is credited with zero.' },
+  { id: '12p-34', q: 'What is the SI unit of electric current?', choices: ['Volt', 'Ampere', 'Ohm', 'Watt'], answerIndex: 1, exp: 'Current is measured in Amperes.' },
+  { id: '12p-35', q: 'Which metal is liquid at room temperature?', choices: ['Mercury', 'Lead', 'Sodium', 'Zinc'], answerIndex: 0, exp: 'Mercury is liquid at room temperature.' },
+  { id: '12p-36', q: 'Which Shakespeare play has the characters Macbeth and Lady Macbeth?', choices: ['Hamlet', 'Othello', 'Macbeth', 'King Lear'], answerIndex: 2, exp: 'They appear in Macbeth.' },
+  { id: '12p-37', q: 'What is the speed of light in vacuum?', choices: ['3 × 10⁸ m/s', '3 × 10⁶ m/s', '1.5 × 10⁸ m/s', '3 × 10⁷ m/s'], answerIndex: 0, exp: 'Speed of light = 3 × 10⁸ m/s.' },
+  { id: '12p-38', q: 'Who is the author of “Harry Potter” series?', choices: ['J.K. Rowling', 'Suzanne Collins', 'Tolkien', 'Rick Riordan'], answerIndex: 0, exp: 'Harry Potter was written by J.K. Rowling.' },
+  { id: '12p-39', q: 'Which is the deepest ocean in the world?', choices: ['Atlantic', 'Indian', 'Pacific', 'Arctic'], answerIndex: 2, exp: 'Pacific Ocean is deepest.' },
+  { id: '12p-40', q: 'Which Indian monument is one of the Seven Wonders of the World?', choices: ['Red Fort', 'Qutub Minar', 'Taj Mahal', 'Hawa Mahal'], answerIndex: 2, exp: 'The Taj Mahal is a world wonder.' },
+],
+    };
+
+    // ========= State =========
+    const state = {
+      level: null,
+      questionCount: 5,
+      secondsPerQ: 25,
+      useAPI: false,
+      apiDifficulty: 'easy',
+      questions: [],
+      index: 0,
+      picked: {}, // id -> { choiceIndex, correct, timedOut, skipped }
+      score: 0,
+      streak: 0,
+      timer: { total: 25, handle: null, paused: false },
+      view: 'intro', // intro | quiz | results
+    };
+
+    // ========= Helpers =========
+    const $ = (sel) => document.querySelector(sel);
+    const $all = (sel) => Array.from(document.querySelectorAll(sel));
+
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+    function sample(arr, n) {
+      const s = shuffle(arr);
+      return s.slice(0, Math.min(n, s.length));
+    }
+    function decodeHTML(str) {
+      const txt = document.createElement('textarea');
+      txt.innerHTML = str;
+      return txt.value;
+    }
+    function formatPct(n, d) {
+      if (d === 0) return 0;
+      return Math.round((n / d) * 100);
+    }
+    function saveBest(level, score, total) {
+      const key = `best-${level}`;
+      const prev = JSON.parse(localStorage.getItem(key) || 'null');
+      if (!prev || score > prev.score || (score === prev.score && total > prev.total)) {
+        localStorage.setItem(key, JSON.stringify({ score, total }));
+      }
+    }
+    function getBest(level) {
+      const key = `best-${level}`;
+      const prev = JSON.parse(localStorage.getItem(key) || 'null');
+      return prev;
+    }
+
+    // ========= UI: Build Level Buttons =========
+    const ageGrid = $('#ageGroupGrid');
+    const levelPill = $('#levelPill');
+    const levelEmoji = $('#levelEmoji');
+    const levelName = $('#levelName');
+    const bestBadge = $('#bestBadge');
+    const bestScoreText = $('#bestScoreText');
+
+    function renderLevels() {
+      ageGrid.innerHTML = '';
+      AGE_LEVELS.forEach(lvl => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'group relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 hover:from-slate-50 hover:to-white p-4 text-left shadow-sm hover:shadow transition';
+        btn.innerHTML = `
+          <div class="flex items-center gap-3">
+            <div class="h-10 w-10 rounded-xl flex items-center justify-center bg-indigo-50 text-indigo-700 text-xl">${lvl.emoji}</div>
+            <div class="min-w-0">
+              <div class="font-bold text-slate-800 truncate">${lvl.label}</div>
+              <div class="text-xs text-slate-500 truncate">${lvl.hint}</div>
+            </div>
+          </div>
+          <div class="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition" style="background: radial-gradient(600px circle at var(--x,50%) var(--y,50%), rgba(99,102,241,.15), transparent 40%)"></div>
+        `;
+        btn.addEventListener('mousemove', (e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          e.currentTarget.style.setProperty('--x', `${e.clientX - r.left}px`);
+          e.currentTarget.style.setProperty('--y', `${e.clientY - r.top}px`);
+        });
+        btn.addEventListener('click', () => {
+          state.level = lvl.key;
+          // Update UI
+          $all('#ageGroupGrid button').forEach(b => b.classList.remove('ring-2', 'ring-indigo-400'));
+          btn.classList.add('ring-2', 'ring-indigo-400');
+
+          levelPill.classList.remove('hidden');
+          levelEmoji.textContent = lvl.emoji;
+          levelName.textContent = lvl.label;
+
+          // Recommended time
+          state.secondsPerQ = lvl.recTime;
+          $('#questionTime').value = state.secondsPerQ;
+          $('#questionTimeValue').textContent = `${state.secondsPerQ}s`;
+
+          // Notice for API use on younger ages
+          if (lvl.key === '1-5' || lvl.key === '5-10') {
+            $('#notice').classList.remove('hidden');
+          } else {
+            $('#notice').classList.add('hidden');
+          }
+
+          // Best score
+          const best = getBest(lvl.key);
+          if (best) {
+            bestBadge.classList.remove('hidden');
+            bestScoreText.textContent = `${best.score}/${best.total}`;
+          } else {
+            bestBadge.classList.add('hidden');
+          }
+
+          // Enable start
+          $('#startBtn').disabled = false;
+        });
+        ageGrid.appendChild(btn);
+      });
+    }
+    renderLevels();
+
+    // ========= Controls =========
+    // Question Count
+    const qCount = $('#questionCount');
+    const qCountVal = $('#questionCountValue');
+    qCount.addEventListener('input', () => {
+      state.questionCount = +qCount.value;
+      qCountVal.textContent = state.questionCount;
+    });
+    // Time per Q
+    const qTime = $('#questionTime');
+    const qTimeVal = $('#questionTimeValue');
+    qTime.addEventListener('input', () => {
+      state.secondsPerQ = +qTime.value;
+      qTimeVal.textContent = `${state.secondsPerQ}s`;
+    });
+    // API toggle
+    const useAPIEl = $('#useAPI');
+    const apiExtras = $('#apiExtras');
+    useAPIEl.addEventListener('change', () => {
+      state.useAPI = useAPIEl.checked;
+      if (state.useAPI) {
+        apiExtras.classList.remove('hidden');
+      } else {
+        apiExtras.classList.add('hidden');
+      }
+    });
+    // Difficulty buttons
+    const diffBtns = $all('.diff-btn');
+    function setDiff(diff) {
+      state.apiDifficulty = diff;
+      diffBtns.forEach(b => {
+        if (b.dataset.diff === diff) {
+          b.classList.add('bg-indigo-600', 'text-white', 'border', 'border-indigo-600');
+          b.classList.remove('bg-slate-100', 'text-slate-700');
+        } else {
+          b.classList.remove('bg-indigo-600', 'text-white', 'border', 'border-indigo-600');
+          b.classList.add('bg-slate-100', 'text-slate-700');
+        }
+      });
+    }
+    diffBtns.forEach(b => b.addEventListener('click', () => setDiff(b.dataset.diff)));
+    setDiff('easy');
+
+    // ========= Quiz Flow =========
+    const elements = {
+      empty: $('#emptyState'),
+      quiz: $('#quizCard'),
+      results: $('#resultCard'),
+      qText: $('#questionText'),
+      answers: $('#answersWrap'),
+      feedback: $('#feedback'),
+      next: $('#nextBtn'),
+      skip: $('#skipBtn'),
+      prev: $('#prevBtn'), // currently hidden
+      timeBar: $('#timeBar'),
+      timerText: $('#timerText'),
+      qIndex: $('#qIndex'),
+      qTotal: $('#qTotal'),
+      scoreVal: $('#scoreVal'),
+      pauseBtn: $('#pauseBtn'),
+      streakPill: $('#streakPill'),
+      streakVal: $('#streakVal'),
+      playAgain: $('#playAgainBtn'),
+      changeLevel: $('#changeLevelBtn'),
+      reviewBtn: $('#reviewBtn'),
+      reviewList: $('#reviewList'),
+      donut: $('#donut'),
+      scorePct: $('#scorePct'),
+      resCorrect: $('#resCorrect'),
+      resWrong: $('#resWrong'),
+      resSkipped: $('#resSkipped'),
+      resultSummary: $('#resultSummary'),
+      startBtn: $('#startBtn'),
+      Text: $('#questionText'),
+  answers: $('#answersWrap'),
+  feedback: $('#feedback'),
+    };
+
+    function setView(v) {
+      state.view = v;
+      if (v === 'intro') {
+        elements.empty.classList.remove('hidden');
+        elements.quiz.classList.add('hidden');
+        elements.results.classList.add('hidden');
+        elements.pauseBtn.classList.add('hidden');
+        elements.timeBar.style.width = '0%';
+        elements.timerText.textContent = '—';
+        elements.qIndex.textContent = '0';
+        elements.qTotal.textContent = '0';
+        elements.scoreVal.textContent = '0';
+        elements.streakPill.classList.add('hidden');
+        elements.feedback.classList.add('hidden');
+      } else if (v === 'quiz') {
+        elements.empty.classList.add('hidden');
+        elements.quiz.classList.remove('hidden');
+        elements.results.classList.add('hidden');
+        elements.pauseBtn.classList.remove('hidden');
+        elements.streakPill.classList.remove('hidden');
+      } else if (v === 'results') {
+        elements.empty.classList.add('hidden');
+        elements.quiz.classList.add('hidden');
+        elements.results.classList.remove('hidden');
+        elements.pauseBtn.classList.add('hidden');
+      }
+    }
+    setView('intro');
+
+    function buildLocalQuestions() {
+      const pool = LOCAL_BANK[state.level] || [];
+      const chosen = sample(pool, state.questionCount);
+      // Shape into unified structure
+      return chosen.map((q) => ({
+        id: q.id,
+        text: q.q,
+        choices: q.choices.map((c, i) => ({ text: c, key: `c${i}` })),
+        correctIndex: q.answerIndex,
+        explanation: q.exp || '',
+        source: 'local',
+      }));
+    }
+
+    async function buildApiQuestions() {
+      // For 10–12 and 12+ we allow API; other levels fallback
+      if (state.level === '1-5' || state.level === '5-10') return null;
+      const amount = Math.max(3, Math.min(10, state.questionCount));
+      const diff = state.apiDifficulty;
+      const url = `https://opentdb.com/api.php?amount=${amount}&type=multiple&encode=url3986&difficulty=${encodeURIComponent(diff)}`;
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!data || data.response_code !== 0 || !Array.isArray(data.results) || data.results.length === 0) {
+          return null;
+        }
+        // Convert
+        const converted = data.results.map((item, idx) => {
+          const decodedQ = decodeURIComponent(item.question);
+          const correct = decodeURIComponent(item.correct_answer);
+          const incorrect = item.incorrect_answers.map(a => decodeURIComponent(a));
+          const mixed = shuffle([correct, ...incorrect]);
+          const correctIndex = mixed.findIndex(x => x === correct);
+          return {
+            id: `api-${Date.now()}-${idx}`,
+            text: decodedQ,
+            choices: mixed.map((t, i) => ({ text: t, key: `c${i}` })),
+            correctIndex,
+            explanation: '', // API doesn’t include explanations
+            source: 'api',
+          };
+        });
+        return converted;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function resetRuntime() {
+      state.questions = [];
+      state.index = 0;
+      state.picked = {};
+      state.score = 0;
+      state.streak = 0;
+      state.timer = { total: state.secondsPerQ, leftMs: state.secondsPerQ * 1000, handle: null, paused: false };
+      elements.streakVal.textContent = '0';
+      elements.scoreVal.textContent = '0';
+      elements.qIndex.textContent = '0';
+      elements.qTotal.textContent = '0';
+      elements.feedback.classList.add('hidden');
+      clearTimer();
+    }
+
+    function clearTimer() {
+      if (state.timer.handle) {
+        clearInterval(state.timer.handle);
+        state.timer.handle = null;
+      }
+    }
+
+    function startTimer() {
+      clearTimer();
+      state.timer.total = state.secondsPerQ;
+      state.timer.leftMs = state.secondsPerQ * 1000;
+      state.timer.paused = false;
+      elements.pauseBtn.textContent = 'Pause';
+      const startTs = Date.now();
+      let prevElapsed = 0;
+      state.timer.handle = setInterval(() => {
+        if (state.timer.paused) return;
+        const now = Date.now();
+        const elapsed = now - startTs - prevElapsed;
+        prevElapsed += elapsed;
+        state.timer.leftMs = Math.max(0, state.secondsPerQ * 1000 - prevElapsed);
+
+        const pct = (state.timer.leftMs / (state.secondsPerQ * 1000)) * 100;
+        elements.timeBar.style.width = `${pct}%`;
+        elements.timerText.textContent = `${Math.ceil(state.timer.leftMs / 1000)}s`;
+
+        if (state.timer.leftMs <= 0) {
+          clearTimer();
+          timesUp();
+        }
+      }, 100);
+    }
+
+    function timesUp() {
+      // Lock answers, show feedback, allow next, record skipped/timed
+      lockOptions();
+      const q = state.questions[state.index];
+      const id = q.id;
+      if (!state.picked[id]) {
+        state.picked[id] = { choiceIndex: null, correct: false, timedOut: true, skipped: false };
+      } else {
+        state.picked[id].timedOut = true;
+      }
+      showFeedback(false, true);
+      elements.next.disabled = false;
+    }
+
+    function renderQuestion() {
+      const q = state.questions[state.index];
+      if (!q) return;
+      elements.qText.textContent = q.text;
+      elements.qIndex.textContent = (state.index + 1).toString();
+      elements.qTotal.textContent = state.questions.length.toString();
+      elements.answers.innerHTML = '';
+      elements.feedback.classList.add('hidden');
+      elements.next.disabled = true; // until answered/timeout
+      elements.skip.disabled = false;
+
+      // Build choices
+      q.choices.forEach((c, i) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'group w-full text-left rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-3 flex items-center gap-3';
+        btn.dataset.index = i.toString();
+        btn.innerHTML = `
+          <span class="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-slate-100 text-slate-700 text-sm font-bold">${String.fromCharCode(65+i)}</span>
+          <span class="flex-1 text-slate-800">${c.text}</span>
+          <span class="hidden check-ico h-6 w-6 text-emerald-600">✔️</span>
+          <span class="hidden cross-ico h-6 w-6 text-rose-600">✖️</span>
+        `;
+        btn.addEventListener('click', () => pickAnswer(i));
+        elements.answers.appendChild(btn);
+      });
+
+      // Timer start
+      startTimer();
+    }
+
+    function lockOptions() {
+      $all('#answersWrap button').forEach(b => {
+        b.disabled = true;
+        b.classList.add('cursor-not-allowed');
+      });
+      elements.skip.disabled = true;
+    }
+
+    function pickAnswer(i) {
+      const q = state.questions[state.index];
+      if (!q) return;
+      lockOptions();
+      clearTimer();
+
+      const correct = i === q.correctIndex;
+      if (correct) {
+        state.score += 1;
+        state.streak += 1;
+        elements.scoreVal.textContent = state.score.toString();
+        elements.streakVal.textContent = state.streak.toString();
+      } else {
+        state.streak = 0;
+        elements.streakVal.textContent = '0';
+      }
+      state.picked[q.id] = { choiceIndex: i, correct, timedOut: false, skipped: false };
+      paintAnswers(i, q.correctIndex);
+      showFeedback(correct, false);
+      elements.next.disabled = false;
+    }
+
+    function showFeedback(correct, timedOut) {
+      const q = state.questions[state.index];
+      const box = elements.feedback;
+      box.classList.remove('hidden');
+      if (timedOut) {
+        box.textContent = 'Time’s up! The correct answer is highlighted.';
+        box.className = 'rounded-xl px-4 py-3 text-sm font-semibold bg-amber-50 text-amber-800 border border-amber-200';
+      } else if (correct) {
+        const msg = q.explanation ? `Correct! ${q.explanation}` : 'Correct!';
+        box.textContent = msg;
+        box.className = 'rounded-xl px-4 py-3 text-sm font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200';
+      } else {
+        const msg = q.explanation ? `Not quite. ${q.explanation}` : 'Not quite. The correct answer is highlighted.';
+        box.textContent = msg;
+        box.className = 'rounded-xl px-4 py-3 text-sm font-semibold bg-rose-50 text-rose-800 border border-rose-200';
+      }
+    }
+
+    function paintAnswers(pickedIndex, correctIndex) {
+      $all('#answersWrap button').forEach((b, idx) => {
+        const isCorrect = idx === correctIndex;
+        const wasPicked = idx === pickedIndex;
+        const check = b.querySelector('.check-ico');
+        const cross = b.querySelector('.cross-ico');
+        if (isCorrect) {
+          b.classList.remove('border-slate-200', 'bg-white');
+          b.classList.add('border-emerald-200', 'bg-emerald-50');
+          if (check) check.classList.remove('hidden');
+        } else if (wasPicked) {
+          b.classList.remove('border-slate-200', 'bg-white');
+          b.classList.add('border-rose-200', 'bg-rose-50');
+          if (cross) cross.classList.remove('hidden');
+        } else {
+          b.classList.add('opacity-70');
+        }
+      });
+    }
+
+    function skipQuestion() {
+      lockOptions();
+      clearTimer();
+      const q = state.questions[state.index];
+      if (q && !state.picked[q.id]) {
+        state.picked[q.id] = { choiceIndex: null, correct: false, timedOut: false, skipped: true };
+      }
+      showFeedback(false, false);
+      elements.next.disabled = false;
+    }
+
+    function nextQuestion() {
+      if (state.index < state.questions.length - 1) {
+        state.index += 1;
+        renderQuestion();
+      } else {
+        finishQuiz();
+      }
+    }
+
+    function finishQuiz() {
+      setView('results');
+      // Compute summary
+      const total = state.questions.length;
+      const correct = state.score;
+      let wrong = 0, skipped = 0;
+      state.questions.forEach(q => {
+        const r = state.picked[q.id];
+        if (!r) return;
+        if (r.correct) return;
+        if (r.skipped || r.timedOut || r.choiceIndex === null) skipped += 1;
+        else wrong += 1;
+      });
+      const pct = formatPct(correct, total);
+      elements.scorePct.textContent = pct.toString();
+      // Donut stroke dash
+      const CIRC = 2 * Math.PI * 42; // r=42
+      const dash = (pct / 100) * CIRC;
+      elements.donut.setAttribute('stroke-dasharray', `${dash} ${CIRC}`);
+
+      elements.resCorrect.textContent = correct.toString();
+      elements.resWrong.textContent = wrong.toString();
+      elements.resSkipped.textContent = skipped.toString();
+      elements.resultSummary.textContent = `You scored ${correct} out of ${total}.`;
+
+      // Save best
+      if (state.level) saveBest(state.level, correct, total);
+
+      // Build review list (collapsed by default)
+      elements.reviewList.innerHTML = '';
+      state.questions.forEach((q, idx) => {
+        const r = state.picked[q.id] || {};
+        const li = document.createElement('div');
+        const status = r.correct ? 'Correct' : (r.timedOut ? 'Timed out' : (r.skipped ? 'Skipped' : 'Wrong'));
+        const color = r.correct ? 'emerald' : (r.timedOut || r.skipped ? 'amber' : 'rose');
+        const pickedText = r.choiceIndex != null && r.choiceIndex >= 0 ? q.choices[r.choiceIndex]?.text : '—';
+        const correctText = q.choices[q.correctIndex]?.text;
+        li.className = 'rounded-xl border border-slate-200 p-4 bg-slate-50';
+        li.innerHTML = `
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+            <div class="font-bold text-slate-800">${idx+1}. ${q.text}</div>
+            <div class="text-xs font-semibold rounded-lg px-2.5 py-1 bg-${color}-50 text-${color}-700 border border-${color}-200 w-max">${status}</div>
+          </div>
+          <div class="mt-2 text-sm text-slate-700"><span class="font-semibold">Your answer:</span> ${pickedText}</div>
+          <div class="text-sm text-slate-700"><span class="font-semibold">Correct answer:</span> ${correctText}</div>
+          ${q.explanation ? `<div class="mt-1 text-xs text-slate-500">${q.explanation}</div>` : ''}
+        `;
+        elements.reviewList.appendChild(li);
+      });
+      elements.reviewList.classList.add('hidden');
+    }
+
+    // ========= Handlers =========
+    elements.skip.addEventListener('click', skipQuestion);
+    elements.next.addEventListener('click', nextQuestion);
+    elements.pauseBtn.addEventListener('click', () => {
+      if (!state.timer.handle) return; // no timer
+      state.timer.paused = !state.timer.paused;
+      elements.pauseBtn.textContent = state.timer.paused ? 'Resume' : 'Pause';
+    });
+
+    elements.startBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      if (!state.level) return;
+
+      resetRuntime();
+      elements.qTotal.textContent = state.questionCount.toString();
+
+      // Build questions: API if selected and applicable, else local
+      let qs = null;
+      if (state.useAPI) {
+        qs = await buildApiQuestions();
+      }
+      if (!qs || !Array.isArray(qs) || qs.length === 0) {
+        // Fallback to local
+        qs = buildLocalQuestions();
+        // If local doesn’t have enough, we’ll just use as many as available
+        if (qs.length < state.questionCount) {
+          // No-op; UI still works with fewer
+        }
+      } else {
+        // If API returned more than requested (shouldn’t), clip
+        if (qs.length > state.questionCount) qs = qs.slice(0, state.questionCount);
+      }
+
+      // Ensure choices are safe strings and shuffle not needed (already mixed)
+      state.questions = qs;
+      setView('quiz');
+      renderQuestion();
+    });
+
+    elements.playAgain.addEventListener('click', (e) => {
+      e.preventDefault();
+      // Restart with same settings and level
+      resetRuntime();
+      setView('quiz');
+      // If API was used and level supports it, try again, else local
+      const run = async () => {
+        let qs = null;
+        if (state.useAPI) qs = await buildApiQuestions();
+        if (!qs || qs.length === 0) qs = buildLocalQuestions();
+        state.questions = qs;
+        renderQuestion();
+      };
+      run();
+    });
+
+    elements.changeLevel.addEventListener('click', (e) => {
+      e.preventDefault();
+      resetRuntime();
+      setView('intro');
+    });
+
+    elements.reviewBtn.addEventListener('click', () => {
+      elements.reviewList.classList.toggle('hidden');
+      elements.reviewBtn.textContent = elements.reviewList.classList.contains('hidden') ? 'Review answers' : 'Hide review';
+    });
+
+    // Accessibility: keyboard support for Next/Skip
+    document.addEventListener('keydown', (e) => {
+      if (state.view !== 'quiz') return;
+      if (e.key === 'ArrowRight') nextQuestion();
+      if (e.key === 's' || e.key === 'S') skipQuestion();
+      if (e.key === ' ') {
+        e.preventDefault();
+        elements.pauseBtn.click();
+      }
+    });
+  </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9842d2f5b2499a9f',t:'MTc1ODcyMjU5NC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
